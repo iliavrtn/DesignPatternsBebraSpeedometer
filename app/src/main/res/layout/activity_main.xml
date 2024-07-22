@@ -1,0 +1,79 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".MainActivity">
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/titleTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Bebra Speedometer"
+        android:textSize="30sp"
+        android:textStyle="bold"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"/>
+
+    <!-- Current Speed Label -->
+    <TextView
+        android:id="@+id/currentSpeedLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Current Speed"
+        android:textSize="24sp"
+        android:layout_below="@id/titleTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp"/>
+
+    <!-- Speed Value -->
+    <TextView
+        android:id="@+id/speedTextView"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="0.0 m/s"
+        android:textSize="40sp"
+        android:textStyle="bold"
+        android:layout_below="@id/currentSpeedLabel"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="10dp"/>
+
+    <!-- Buttons for Unit Selection -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_below="@id/speedTextView"
+        android:layout_centerHorizontal="true"
+        android:layout_marginTop="20dp">
+
+        <Button
+            android:id="@+id/buttonKmh"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="km/h"/>
+
+        <Button
+            android:id="@+id/buttonKnots"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="knots"
+            android:layout_marginStart="10dp"
+            android:layout_marginEnd="10dp"/>
+
+        <Button
+            android:id="@+id/buttonMs"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="m/s"/>
+    </LinearLayout>
+
+    <!-- Switch for Dark/Light Mode -->
+    <Switch
+        android:id="@+id/themeSwitch"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/buttonMs"
+        android:layout_marginTop="455dp"
+        android:text="Dark Mode" />
+</RelativeLayout>
