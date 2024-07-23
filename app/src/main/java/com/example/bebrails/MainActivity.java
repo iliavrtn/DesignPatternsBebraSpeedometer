@@ -1,122 +1,177 @@
 package com.example.bebrails;
 
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import android.widget.Switch;
 import android.widget.TextView;
-
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
+import androidx.appcompat.widget.SwitchCompat;
+
+import java.util.Timer;
+import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
     private SensorManager sensorManager;
     private Sensor accelerometer;
+    private Sensor gravitySensor;
     private TextView speedTextView;
-    private Button buttonKmh, buttonKnots, buttonMs;
-    private Switch themeSwitch;
-    private double speed = 0.0;
-    private String currentUnit = "m/s";
+    private SwitchCompat themeSwitch;
     private SharedPreferences preferences;
+    private boolean isDarkMode;
+    private String currentUnit = "m/s";  // Default unit
+
+    private float[] gravity = new float[3];
+    private float[] linearAcceleration = new float[3];
+    private float speed = 0.0f;
+    private float[] velocity = new float[3];
+    private long lastUpdateTime = 0;
+    private static final float SPEED_THRESHOLD = 0.1f;
+    private static final float NOISE_THRESHOLD = 0.05f;
+
+    private Timer timer;
+    private Handler handler;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        preferences = getSharedPreferences("appPreferences", MODE_PRIVATE);
+        isDarkMode = preferences.getBoolean("darkMode", false);
+        setTheme(isDarkMode ? R.style.Theme_Bebrails_Dark : R.style.Theme_Bebrails_Light);
         setContentView(R.layout.activity_main);
 
-        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-
         speedTextView = findViewById(R.id.speedTextView);
-        buttonKmh = findViewById(R.id.buttonKmh);
-        buttonKnots = findViewById(R.id.buttonKnots);
-        buttonMs = findViewById(R.id.buttonMs);
         themeSwitch = findViewById(R.id.themeSwitch);
+        themeSwitch.setChecked(isDarkMode);
+        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> toggleTheme(isChecked));
 
-        preferences = getSharedPreferences("app_prefs", MODE_PRIVATE);
+        Button buttonKmh = findViewById(R.id.buttonKmh);
+        Button buttonKnots = findViewById(R.id.buttonKnots);
+        Button buttonMs = findViewById(R.id.buttonMs);
 
-        // Restore user preferences
-        currentUnit = preferences.getString("unit", "m/s");
-        boolean isDarkMode = preferences.getBoolean("dark_mode", false);
+        buttonKmh.setOnClickListener(v -> currentUnit = "km/h");
+        buttonKnots.setOnClickListener(v -> currentUnit = "knots");
+        buttonMs.setOnClickListener(v -> currentUnit = "m/s");
 
-        if (isDarkMode) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-        } else {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-        }
+        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
 
-        updateSpeedDisplay();
-
-        buttonKmh.setOnClickListener(v -> {
-            currentUnit = "km/h";
-            savePreferences();
-            updateSpeedDisplay();
-        });
-
-        buttonKnots.setOnClickListener(v -> {
-            currentUnit = "knots";
-            savePreferences();
-            updateSpeedDisplay();
-        });
-
-        buttonMs.setOnClickListener(v -> {
-            currentUnit = "m/s";
-            savePreferences();
-            updateSpeedDisplay();
-        });
-
-        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
-            if (isChecked) {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
-            } else {
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
-            }
-            savePreferences();
-        });
+        handler = new Handler(Looper.getMainLooper());
+        timer = new Timer();
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            float x = event.values[0];
-            float y = event.values[1];
-            float z = event.values[2];
-            speed = Math.sqrt(x * x + y * y + z * z);
-            updateSpeedDisplay();
+        if (event.sensor.getType() == Sensor.TYPE_GRAVITY) {
+            gravity[0] = event.values[0];
+            gravity[1] = event.values[1];
+            gravity[2] = event.values[2];
+        } else if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            // Apply low-pass filter to isolate the force of gravity
+            final float alpha = 0.8f;
+            gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0];
+            gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
+            gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2];
+
+            // Remove gravity contribution
+            linearAcceleration[0] = event.values[0] - gravity[0];
+            linearAcceleration[1] = event.values[1] - gravity[1];
+            linearAcceleration[2] = event.values[2] - gravity[2];
+
+            long currentTime = System.currentTimeMillis();
+            if (lastUpdateTime != 0) {
+                float deltaTime = (currentTime - lastUpdateTime) / 1000.0f;
+
+                // Update velocity only if the acceleration is above a noise threshold
+                if (Math.abs(linearAcceleration[0]) > NOISE_THRESHOLD ||
+                        Math.abs(linearAcceleration[1]) > NOISE_THRESHOLD ||
+                        Math.abs(linearAcceleration[2]) > NOISE_THRESHOLD) {
+                    velocity[0] += linearAcceleration[0] * deltaTime;
+                    velocity[1] += linearAcceleration[1] * deltaTime;
+                    velocity[2] += linearAcceleration[2] * deltaTime;
+
+                    // Calculate speed as the magnitude of the velocity vector
+                    speed = (float) Math.sqrt(velocity[0] * velocity[0]
+                            + velocity[1] * velocity[1]
+                            + velocity[2] * velocity[2]);
+                } else {
+                    // If acceleration is below the noise threshold, set velocity and speed to zero
+                    speed = 0;
+                    velocity[0] = 0;
+                    velocity[1] = 0;
+                    velocity[2] = 0;
+                }
+            }
+            lastUpdateTime = currentTime;
+
+            // Apply speed threshold
+            if (speed < SPEED_THRESHOLD) {
+                speed = 0;
+            }
         }
     }
 
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
-        // No action needed
+        // Not needed for this example
     }
 
-    private void updateSpeedDisplay() {
-        double displaySpeed;
+    @Override
+    protected void onResume() {
+        super.onResume();
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+
+        // Schedule the timer to update the speed display every second
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                handler.post(() -> updateSpeedDisplay(speed));
+            }
+        }, 0, 1000); // Delay of 0 ms, interval of 1000 ms (1 second)
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        sensorManager.unregisterListener(this);
+
+        // Cancel the timer when the activity is paused
+        timer.cancel();
+    }
+
+    private void updateSpeedDisplay(float speed) {
+        String speedText;
         switch (currentUnit) {
             case "km/h":
-                displaySpeed = speed * 3.6 - 35.22;
+                speedText = String.format("Speed: %.2f km/h", speed * 3.6);
                 break;
             case "knots":
-                displaySpeed = speed * 1.94384 - 19;
+                speedText = String.format("Speed: %.2f knots", speed * 1.94384);
                 break;
             default:
-                displaySpeed = speed - 9.79;
+                speedText = String.format("Speed: %.2f m/s", speed);
                 break;
         }
-        speedTextView.setText(String.format("%.2f %s", displaySpeed, currentUnit));
+        speedTextView.setText(speedText);
     }
 
-    private void savePreferences() {
+    private void toggleTheme(boolean isDarkMode) {
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putString("unit", currentUnit);
-        editor.putBoolean("dark_mode", themeSwitch.isChecked());
+        editor.putBoolean("darkMode", isDarkMode);
         editor.apply();
+        AppCompatDelegate.setDefaultNightMode(isDarkMode ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO);
+        recreate();
     }
 }
