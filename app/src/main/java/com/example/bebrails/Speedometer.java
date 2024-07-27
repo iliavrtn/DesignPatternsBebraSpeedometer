@@ -2,11 +2,12 @@ package com.example.bebrails;
 
 public class Speedometer {
     public static final float NANOSECONDS_IN_SECOND = 1000000000.0f;
-    Vector3D gravity;
+    Vector3D gravity = null;
     Vector3D velocity = new Vector3D(0.0f,0.0f,0.0f);
     private long lastUpdateTime = 0;
-    private static final float SPEED_THRESHOLD = 0.1f;
     private static final float NOISE_THRESHOLD = 0.1f;
+
+
 
     void updateGravity(Vector3D gravity) {
         this.gravity = gravity;

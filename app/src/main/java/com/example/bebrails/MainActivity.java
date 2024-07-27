@@ -15,18 +15,23 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 import androidx.appcompat.widget.SwitchCompat;
 
+import com.example.bebrails.speed_format_strategy.SpeedFormatStrategy;
+import com.example.bebrails.speed_format_strategy.SpeedInKilometersPerHourStrategy;
+import com.example.bebrails.speed_format_strategy.SpeedInKnotsStrategy;
+import com.example.bebrails.speed_format_strategy.SpeedInMetersPerSecondStrategy;
+
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
+    public static final int DISPLAY_SPEED_REFRESH_INTERVAL_IN_MILLISECONDS = 100;
     private Sensor accelerometer;
     private Sensor gravitySensor;
     private TextView speedTextView;
     private SharedPreferences preferences;
-    private String currentUnit = "m/s";  // Default unit
-    private Speedometer speedometer = new Speedometer();
-    Vector3D gravity;
+    private SpeedFormatStrategy speedFormatStrategy = new SpeedInMetersPerSecondStrategy();
+    private final Speedometer speedometer = new Speedometer();
 
 
 
@@ -51,13 +56,10 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Button buttonKnots = findViewById(R.id.buttonKnots);
         Button buttonMs = findViewById(R.id.buttonMs);
 
-        buttonKmh.setOnClickListener(v -> currentUnit = "km/h");
-        buttonKnots.setOnClickListener(v -> currentUnit = "knots");
-        buttonMs.setOnClickListener(v -> currentUnit = "m/s");
+        buttonKmh.setOnClickListener(v -> speedFormatStrategy = new SpeedInKilometersPerHourStrategy());
+        buttonKnots.setOnClickListener(v -> speedFormatStrategy = new SpeedInKnotsStrategy());
+        buttonMs.setOnClickListener(v -> speedFormatStrategy = new SpeedInMetersPerSecondStrategy());
 
-        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
 
         handler = new Handler(Looper.getMainLooper());
         timer = new Timer();
@@ -91,17 +93,34 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onResume() {
         super.onResume();
-        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
-        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
+
+        registerSensorListeners();
 
         // Schedule the timer to update the speed display every second
+
+
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                handler.post(() -> updateSpeedDisplay(speedometer.getSpeed()));
+                handler.post(() -> {
+                    updateSpeedDisplay();
+                });
             }
-        }, 0, 1000); // Delay of 0 ms, interval of 1000 ms (1 second)
+        }, 0, DISPLAY_SPEED_REFRESH_INTERVAL_IN_MILLISECONDS);
+    }
+
+    private void registerSensorListeners() {
+        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
+    }
+
+    private void updateSpeedDisplay() {
+        float currentSpeed = speedometer.getSpeed();
+        String formattedSpeed = speedFormatStrategy.formatSpeed(currentSpeed);
+        speedTextView.setText(formattedSpeed);
     }
 
     @Override
@@ -114,21 +133,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         timer.cancel();
     }
 
-    private void updateSpeedDisplay(float speed) {
-        String speedText;
-        switch (currentUnit) {
-            case "km/h":
-                speedText = String.format("Speed: %.2f km/h", speed * 3.6);
-                break;
-            case "knots":
-                speedText = String.format("Speed: %.2f knots", speed * 1.94384);
-                break;
-            default:
-                speedText = String.format("Speed: %.2f m/s", speed);
-                break;
-        }
-        speedTextView.setText(speedText);
-    }
 
     private void toggleTheme(boolean isDarkMode) {
         SharedPreferences.Editor editor = preferences.edit();
