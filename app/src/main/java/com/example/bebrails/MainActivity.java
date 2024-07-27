@@ -9,9 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.widget.Button;
-import android.widget.Switch;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -22,14 +20,10 @@ import java.util.TimerTask;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
-    private SensorManager sensorManager;
     private Sensor accelerometer;
     private Sensor gravitySensor;
     private TextView speedTextView;
-    private SwitchCompat themeSwitch;
     private SharedPreferences preferences;
-    private boolean isDarkMode;
-    private boolean firstRun=true;
     private String currentUnit = "m/s";  // Default unit
 
     Vector3D gravity;
@@ -50,12 +44,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
 
         preferences = getSharedPreferences("appPreferences", MODE_PRIVATE);
-        isDarkMode = preferences.getBoolean("darkMode", false);
+        boolean isDarkMode = preferences.getBoolean("darkMode", false);
         setTheme(isDarkMode ? R.style.Theme_Bebrails_Dark : R.style.Theme_Bebrails_Light);
         setContentView(R.layout.activity_main);
 
         speedTextView = findViewById(R.id.speedTextView);
-        themeSwitch = findViewById(R.id.themeSwitch);
+        SwitchCompat themeSwitch = findViewById(R.id.themeSwitch);
         themeSwitch.setChecked(isDarkMode);
         themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> toggleTheme(isChecked));
 
@@ -67,7 +61,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         buttonKnots.setOnClickListener(v -> currentUnit = "knots");
         buttonMs.setOnClickListener(v -> currentUnit = "m/s");
 
-        sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
 
@@ -110,6 +104,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onResume() {
         super.onResume();
+        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
         sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
 
@@ -125,6 +120,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onPause() {
         super.onPause();
+        SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         sensorManager.unregisterListener(this);
 
         // Cancel the timer when the activity is paused
