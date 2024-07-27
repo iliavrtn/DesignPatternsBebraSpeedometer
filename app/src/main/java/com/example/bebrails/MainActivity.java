@@ -19,20 +19,19 @@ import com.example.bebrails.speed_format_strategy.SpeedFormatStrategy;
 import com.example.bebrails.speed_format_strategy.SpeedInKilometersPerHourStrategy;
 import com.example.bebrails.speed_format_strategy.SpeedInKnotsStrategy;
 import com.example.bebrails.speed_format_strategy.SpeedInMetersPerSecondStrategy;
+import com.example.bebrails.themeObserver.ThemeManager;
+import com.example.bebrails.themeObserver.ThemeObserver;
 
 import java.util.Timer;
 import java.util.TimerTask;
 
-public class MainActivity extends AppCompatActivity implements SensorEventListener {
+public class MainActivity extends AppCompatActivity implements SensorEventListener, ThemeObserver {
 
     public static final int DISPLAY_SPEED_REFRESH_INTERVAL_IN_MILLISECONDS = 100;
-    private Sensor accelerometer;
-    private Sensor gravitySensor;
     private TextView speedTextView;
     private SharedPreferences preferences;
     private SpeedFormatStrategy speedFormatStrategy = new SpeedInMetersPerSecondStrategy();
     private final Speedometer speedometer = new Speedometer();
-
 
 
     private Timer timer;
@@ -43,15 +42,27 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
 
         preferences = getSharedPreferences("appPreferences", MODE_PRIVATE);
-        boolean isDarkMode = preferences.getBoolean("darkMode", false);
-        setTheme(isDarkMode ? R.style.Theme_Bebrails_Dark : R.style.Theme_Bebrails_Light);
+        inCreateSetTheme();
+
         setContentView(R.layout.activity_main);
 
         speedTextView = findViewById(R.id.speedTextView);
-        SwitchCompat themeSwitch = findViewById(R.id.themeSwitch);
-        themeSwitch.setChecked(isDarkMode);
-        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> toggleTheme(isChecked));
 
+        setChangeSpeedUnitsButtonListeners();
+
+        handler = new Handler(Looper.getMainLooper());
+        timer = new Timer();
+    }
+
+    private void inCreateSetTheme() {
+        boolean isDarkMode = preferences.getBoolean("darkMode", false);
+        setTheme(isDarkMode ? R.style.Theme_Bebrails_Dark : R.style.Theme_Bebrails_Light);
+        ThemeManager.getInstance().addObserver(this);
+        SwitchCompat themeSwitch = findViewById(R.id.themeSwitch);
+        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> ThemeManager.getInstance().notifyThemeChanged(isChecked));
+    }
+
+    private void setChangeSpeedUnitsButtonListeners() {
         Button buttonKmh = findViewById(R.id.buttonKmh);
         Button buttonKnots = findViewById(R.id.buttonKnots);
         Button buttonMs = findViewById(R.id.buttonMs);
@@ -59,10 +70,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         buttonKmh.setOnClickListener(v -> speedFormatStrategy = new SpeedInKilometersPerHourStrategy());
         buttonKnots.setOnClickListener(v -> speedFormatStrategy = new SpeedInKnotsStrategy());
         buttonMs.setOnClickListener(v -> speedFormatStrategy = new SpeedInMetersPerSecondStrategy());
-
-
-        handler = new Handler(Looper.getMainLooper());
-        timer = new Timer();
     }
 
     private Vector3D getVectorFromEvent(SensorEvent event){
@@ -84,7 +91,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     }
 
-
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Not needed for this example
@@ -95,24 +101,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onResume();
 
         registerSensorListeners();
+        scheduleTimerToUpdateSpeedDisplay();
+    }
 
-        // Schedule the timer to update the speed display every second
-
-
+    private void scheduleTimerToUpdateSpeedDisplay() {
         timer.schedule(new TimerTask() {
             @Override
             public void run() {
-                handler.post(() -> {
-                    updateSpeedDisplay();
-                });
+                handler.post(() -> updateSpeedDisplay());
             }
         }, 0, DISPLAY_SPEED_REFRESH_INTERVAL_IN_MILLISECONDS);
     }
 
     private void registerSensorListeners() {
         SensorManager sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-        accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
+        Sensor accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        Sensor gravitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_GRAVITY);
         sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
         sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
     }
@@ -134,11 +138,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
 
-    private void toggleTheme(boolean isDarkMode) {
+    @Override
+    public void onThemeChanged(boolean isDarkMode) {
         SharedPreferences.Editor editor = preferences.edit();
         editor.putBoolean("darkMode", isDarkMode);
         editor.apply();
         AppCompatDelegate.setDefaultNightMode(isDarkMode ? AppCompatDelegate.MODE_NIGHT_YES : AppCompatDelegate.MODE_NIGHT_NO);
-        recreate();
+        recreate(); // This will recreate the activity with the new theme.
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        ThemeManager.getInstance().removeObserver(this); // Unregister the observer when the activity is destroyed
     }
 }

@@ -11,17 +11,6 @@ public class Vector3D {
         this.z = z;
     }
 
-    public float getX() {
-        return x;
-    }
-
-    public float getY() {
-        return y;
-    }
-
-    public float getZ() {
-        return z;
-    }
 
     public Vector3D add(Vector3D other) {
         return new Vector3D(this.x + other.x, this.y + other.y, this.z + other.z);
