@@ -32,12 +32,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private boolean firstRun=true;
     private String currentUnit = "m/s";  // Default unit
 
-    private float[] gravity = new float[3];
+    Vector3D gravity;
     private boolean gravityIsSet=false;
-    private float[] linearAcceleration = new float[3];
-    private float[] previousAcceleration = new float[3];
+    Vector3D linearAcceleration;
     private float speed = 0.0f;
-    private float[] velocity = new float[3];
+    Vector3D velocity = new Vector3D(0.0f,0.0f,0.0f);
     private long lastUpdateTime = 0;
 
     private static final float SPEED_THRESHOLD = 0.1f;
@@ -79,30 +78,18 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     public void onSensorChanged(SensorEvent event) {
         if (event.sensor.getType() == Sensor.TYPE_GRAVITY) {
-            gravity[0] = event.values[0];
-            gravity[1] = event.values[1];
-            gravity[2] = event.values[2];
+            gravity = new Vector3D(event.values[0], event.values[1], event.values[2]);
             gravityIsSet = true;
         } else if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER && gravityIsSet) {
-
-            linearAcceleration[0] = event.values[0] - gravity[0];
-            linearAcceleration[1] = event.values[1] - gravity[1];
-            linearAcceleration[2] = event.values[2] - gravity[2];
+            linearAcceleration = new Vector3D(event.values[0], event.values[1], event.values[2]);
+            linearAcceleration = linearAcceleration.subtract(gravity);
 
             long currentTime = System.nanoTime();
             if (lastUpdateTime != 0) {
                 float deltaTime = (currentTime - lastUpdateTime) / 1000000000.0f;
-                if (Math.abs(linearAcceleration[0]) > NOISE_THRESHOLD ||
-                        Math.abs(linearAcceleration[1]) > NOISE_THRESHOLD ||
-                        Math.abs(linearAcceleration[2]) > NOISE_THRESHOLD) {
-                    velocity[0] += linearAcceleration[0] * deltaTime;
-                    velocity[1] += linearAcceleration[1] * deltaTime;
-                    velocity[2] += linearAcceleration[2] * deltaTime;
-
-                    // Calculate speed as the magnitude of the velocity vector
-                    speed = (float) Math.sqrt(velocity[0] * velocity[0]
-                            + velocity[1] * velocity[1]
-                            + velocity[2] * velocity[2]);
+                if (linearAcceleration.magnitude()>NOISE_THRESHOLD) {
+                    velocity = velocity.add(linearAcceleration.scale(deltaTime));
+                    speed = velocity.magnitude();
                 }
             }
             lastUpdateTime = currentTime;
