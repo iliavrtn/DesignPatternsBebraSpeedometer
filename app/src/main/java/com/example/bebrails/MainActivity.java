@@ -9,6 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.Switch;
 import android.widget.TextView;
@@ -28,15 +29,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     private SwitchCompat themeSwitch;
     private SharedPreferences preferences;
     private boolean isDarkMode;
+    private boolean firstRun=true;
     private String currentUnit = "m/s";  // Default unit
 
     private float[] gravity = new float[3];
+    private boolean gravityIsSet=false;
     private float[] linearAcceleration = new float[3];
+    private float[] previousAcceleration = new float[3];
     private float speed = 0.0f;
     private float[] velocity = new float[3];
     private long lastUpdateTime = 0;
+
     private static final float SPEED_THRESHOLD = 0.1f;
-    private static final float NOISE_THRESHOLD = 0.05f;
+    private static final float NOISE_THRESHOLD = 0.1f;
 
     private Timer timer;
     private Handler handler;
@@ -77,23 +82,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             gravity[0] = event.values[0];
             gravity[1] = event.values[1];
             gravity[2] = event.values[2];
-        } else if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
-            // Apply low-pass filter to isolate the force of gravity
-            final float alpha = 0.8f;
-            gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0];
-            gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1];
-            gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2];
+            gravityIsSet = true;
+        } else if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER && gravityIsSet) {
 
-            // Remove gravity contribution
             linearAcceleration[0] = event.values[0] - gravity[0];
             linearAcceleration[1] = event.values[1] - gravity[1];
             linearAcceleration[2] = event.values[2] - gravity[2];
 
-            long currentTime = System.currentTimeMillis();
+            long currentTime = System.nanoTime();
             if (lastUpdateTime != 0) {
-                float deltaTime = (currentTime - lastUpdateTime) / 1000.0f;
-
-                // Update velocity only if the acceleration is above a noise threshold
+                float deltaTime = (currentTime - lastUpdateTime) / 1000000000.0f;
                 if (Math.abs(linearAcceleration[0]) > NOISE_THRESHOLD ||
                         Math.abs(linearAcceleration[1]) > NOISE_THRESHOLD ||
                         Math.abs(linearAcceleration[2]) > NOISE_THRESHOLD) {
@@ -105,12 +103,6 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                     speed = (float) Math.sqrt(velocity[0] * velocity[0]
                             + velocity[1] * velocity[1]
                             + velocity[2] * velocity[2]);
-                } else {
-                    // If acceleration is below the noise threshold, set velocity and speed to zero
-                    speed = 0;
-                    velocity[0] = 0;
-                    velocity[1] = 0;
-                    velocity[2] = 0;
                 }
             }
             lastUpdateTime = currentTime;
@@ -122,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         }
     }
 
+
     @Override
     public void onAccuracyChanged(Sensor sensor, int accuracy) {
         // Not needed for this example
@@ -130,8 +123,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onResume() {
         super.onResume();
-        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
-        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_FASTEST);
+        sensorManager.registerListener(this, gravitySensor, SensorManager.SENSOR_DELAY_FASTEST);
 
         // Schedule the timer to update the speed display every second
         timer.schedule(new TimerTask() {
