@@ -42,12 +42,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
 
         preferences = getSharedPreferences("appPreferences", MODE_PRIVATE);
-        inCreateSetTheme();
+        inCreateSetTheme(); // Set the theme before setting the content view
 
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main); // Now set the content view
 
+        // Initialize the theme toggle switch and set its state
+        SwitchCompat themeSwitch = findViewById(R.id.themeSwitch);
+        boolean isDarkMode = preferences.getBoolean("darkMode", false);
+        themeSwitch.setChecked(isDarkMode);
+        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> ThemeManager.getInstance().notifyThemeChanged(isChecked));
+
+        // Rest of your onCreate code
+        loadSpeedUnitPreference();
         speedTextView = findViewById(R.id.speedTextView);
-
         setChangeSpeedUnitsButtonListeners();
 
         handler = new Handler(Looper.getMainLooper());
@@ -58,8 +65,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         boolean isDarkMode = preferences.getBoolean("darkMode", false);
         setTheme(isDarkMode ? R.style.Theme_Bebrails_Dark : R.style.Theme_Bebrails_Light);
         ThemeManager.getInstance().addObserver(this);
-        SwitchCompat themeSwitch = findViewById(R.id.themeSwitch);
-        themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> ThemeManager.getInstance().notifyThemeChanged(isChecked));
+    }
+
+    private void saveSpeedUnitPreference(String unit) {
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString("speedUnit", unit);
+        editor.apply();
     }
 
     private void setChangeSpeedUnitsButtonListeners() {
@@ -67,9 +78,36 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Button buttonKnots = findViewById(R.id.buttonKnots);
         Button buttonMs = findViewById(R.id.buttonMs);
 
-        buttonKmh.setOnClickListener(v -> speedFormatStrategy = new SpeedInKilometersPerHourStrategy());
-        buttonKnots.setOnClickListener(v -> speedFormatStrategy = new SpeedInKnotsStrategy());
-        buttonMs.setOnClickListener(v -> speedFormatStrategy = new SpeedInMetersPerSecondStrategy());
+        buttonKmh.setOnClickListener(v -> {
+            speedFormatStrategy = new SpeedInKilometersPerHourStrategy();
+            saveSpeedUnitPreference("kmh");
+        });
+
+        buttonKnots.setOnClickListener(v -> {
+            speedFormatStrategy = new SpeedInKnotsStrategy();
+            saveSpeedUnitPreference("knots");
+        });
+
+        buttonMs.setOnClickListener(v -> {
+            speedFormatStrategy = new SpeedInMetersPerSecondStrategy();
+            saveSpeedUnitPreference("ms");
+        });
+    }
+
+    private void loadSpeedUnitPreference() {
+        String unit = preferences.getString("speedUnit", "ms");
+        switch (unit) {
+            case "kmh":
+                speedFormatStrategy = new SpeedInKilometersPerHourStrategy();
+                break;
+            case "knots":
+                speedFormatStrategy = new SpeedInKnotsStrategy();
+                break;
+            case "ms":
+            default:
+                speedFormatStrategy = new SpeedInMetersPerSecondStrategy();
+                break;
+        }
     }
 
     private Vector3D getVectorFromEvent(SensorEvent event){
